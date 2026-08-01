@@ -1,0 +1,1 @@
+# Plataforma Cinematográfica Asíncrona Resiliente
