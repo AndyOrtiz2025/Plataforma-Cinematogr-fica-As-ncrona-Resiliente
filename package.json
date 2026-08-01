@@ -1,0 +1,16 @@
+{
+  "name": "cinegrid-ts",
+  "version": "1.0.0",
+  "description": "CineGrid — Migración a TypeScript estricto con arquitectura DTO/Mapper/Entity",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

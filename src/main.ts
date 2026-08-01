@@ -1,54 +1,67 @@
 /* =====================================================================
-   main.js — Punto de entrada de la aplicación.
+   main.ts — Punto de entrada de la aplicación.
    Importa todos los módulos y conecta el DOM con la lógica.
    ===================================================================== */
 
 import { CONFIG, GENRES, isApiConfigured, getLang, setLang, t } from './config.js';
-import { createFavoritesManager } from './favorites.js';
+import { createFavoritesManager, type FavoritesManager } from './favorites.js';
 import { createFilterCache } from './filterCache.js';
 import { fetchCatalogService, loadHomeData } from './services.js';
 import { renderGallery, populateGenreSelect, getPosterUrl } from './render.js';
 import { openMovieModal, closeModal } from './modal.js';
+import type { MovieEntity } from './entities/movieEntity.js';
+import type { ReviewsEntity } from './entities/reviewsEntity.js';
+import type { AdEntity } from './entities/adsEntity.js';
+
+/* -----------------------------------------------------------------
+   Helper para obtener elementos del DOM con seguridad de tipos.
+   Bajo "strict", getElementById regresa `HTMLElement | null` — este
+   helper lanza un error claro en vez de dejar pasar un `null` que
+   rompería algo más adelante en tiempo de ejecución.
+   ----------------------------------------------------------------- */
+function getEl<T extends HTMLElement>(id: string): T {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`No se encontró el elemento #${id} en el DOM`);
+  return el as T;
+}
 
 /* ------------------------- Referencias al DOM ------------------------- */
 const els = {
-  grid: document.getElementById('movieGrid'),
-  filmLeader: document.getElementById('filmLeader'),
-  leaderNumber: document.getElementById('leaderNumber'),
-  emptyState: document.getElementById('emptyState'),
-  statusLine: document.getElementById('statusLine'),
-  searchInput: document.getElementById('searchInput'),
-  genreSelect: document.getElementById('genreSelect'),
-  yearInput: document.getElementById('yearInput'),
-  searchBtn: document.getElementById('searchBtn'),
-  favToggleBtn: document.getElementById('favToggleBtn'),
-  favPanel: document.getElementById('favPanel'),
-  favPanelHandle: document.getElementById('favPanelHandle'),
-  favPanelBody: document.getElementById('favPanelBody'),
-  favCount: document.getElementById('favCount'),
-  modalBackdrop: document.getElementById('modalBackdrop'),
-  modalContent: document.getElementById('modalContent'),
-  modalClose: document.getElementById('modalClose'),
-  langToggleBtn: document.getElementById('langToggleBtn'),
-  langToggleLabel: document.getElementById('langToggleLabel'),
-  adsBanner: document.getElementById('adsBanner'),
-  reviewsBadge: document.getElementById('reviewsBadge')
+  grid: getEl<HTMLDivElement>('movieGrid'),
+  filmLeader: getEl<HTMLDivElement>('filmLeader'),
+  leaderNumber: getEl<HTMLSpanElement>('leaderNumber'),
+  emptyState: getEl<HTMLParagraphElement>('emptyState'),
+  statusLine: getEl<HTMLParagraphElement>('statusLine'),
+  searchInput: getEl<HTMLInputElement>('searchInput'),
+  genreSelect: getEl<HTMLSelectElement>('genreSelect'),
+  yearInput: getEl<HTMLInputElement>('yearInput'),
+  searchBtn: getEl<HTMLButtonElement>('searchBtn'),
+  favToggleBtn: getEl<HTMLButtonElement>('favToggleBtn'),
+  favPanel: getEl<HTMLElement>('favPanel'),
+  favPanelHandle: getEl<HTMLElement>('favPanelHandle'),
+  favPanelBody: getEl<HTMLDivElement>('favPanelBody'),
+  favCount: getEl<HTMLSpanElement>('favCount'),
+  modalBackdrop: getEl<HTMLDivElement>('modalBackdrop'),
+  modalContent: getEl<HTMLDivElement>('modalContent'),
+  modalClose: getEl<HTMLButtonElement>('modalClose'),
+  langToggleBtn: getEl<HTMLButtonElement>('langToggleBtn'),
+  langToggleLabel: getEl<HTMLSpanElement>('langToggleLabel'),
+  adsBanner: getEl<HTMLParagraphElement>('adsBanner'),
+  reviewsBadge: getEl<HTMLParagraphElement>('reviewsBadge')
 };
 
 /* ------------------------- Estado de la aplicación ------------------------- */
-const favoritesManager = createFavoritesManager();
+const favoritesManager: FavoritesManager = createFavoritesManager();
 
-// REQUISITO 2: closure de caché — cuando se pide un género ya
-// consultado, regresa de inmediato sin volver a llamar a la API.
-const filterCache = createFilterCache(genreId => fetchCatalogService({ genreId }));
+const filterCache = createFilterCache<MovieEntity[]>(genreId => fetchCatalogService({ genreId }));
 
-let currentMovies = [];
+let currentMovies: MovieEntity[] = [];
 let showingFavoritesOnly = false;
 
 /* ===================================================================
    Contador (leader) del spinner de carga
    =================================================================== */
-function runCountdown(ms) {
+function runCountdown(ms: number): ReturnType<typeof setInterval> {
   const steps = 3;
   const stepMs = ms / steps;
   let n = steps;
@@ -63,13 +76,18 @@ function runCountdown(ms) {
 
 /* ===================================================================
    Banners de servicios opcionales (Reseñas / Anuncios)
-   REQUISITO 1: si un servicio falla, mostramos su aviso discreto
-   pero la galería principal sigue funcionando con normalidad.
    =================================================================== */
-function renderServiceBanners({ reviews, reviewsError, ads, adsError }) {
+interface ServiceBannerData {
+  reviews: ReviewsEntity | null;
+  reviewsError: string | null;
+  ads: AdEntity | null;
+  adsError: string | null;
+}
+
+function renderServiceBanners({ reviews, reviewsError, ads, adsError }: ServiceBannerData): void {
   if (ads) {
     els.adsBanner.hidden = false;
-    els.adsBanner.textContent = ads.banner;
+    els.adsBanner.textContent = ads.bannerText;
     els.adsBanner.classList.remove('service-error');
   } else if (adsError) {
     els.adsBanner.hidden = false;
@@ -95,10 +113,9 @@ function renderServiceBanners({ reviews, reviewsError, ads, adsError }) {
 }
 
 /* ===================================================================
-   Carga principal — dispara los 3 servicios en paralelo con
-   Promise.allSettled (usada por: carga inicial, buscar, filtro de año)
+   Carga principal — Promise.allSettled (inicial, buscar, año)
    =================================================================== */
-async function loadMovies() {
+async function loadMovies(): Promise<void> {
   els.filmLeader.hidden = false;
   els.emptyState.hidden = true;
   els.grid.hidden = true;
@@ -129,11 +146,9 @@ async function loadMovies() {
 }
 
 /* ===================================================================
-   Filtro por género — usa el CACHÉ (REQUISITO 2), independiente del
-   flujo de arriba. La 2da vez que se elige el mismo género, no hay
-   spinner ni latencia: se sirve directo desde memoria.
+   Filtro por género — usa el caché con closures
    =================================================================== */
-async function handleGenreFilterChange() {
+async function handleGenreFilterChange(): Promise<void> {
   const genreId = els.genreSelect.value;
   const alreadyCached = filterCache.has(genreId);
 
@@ -156,7 +171,7 @@ async function handleGenreFilterChange() {
   els.grid.hidden = false;
 }
 
-function applyFiltersAndRender() {
+function applyFiltersAndRender(): void {
   const list = showingFavoritesOnly
     ? currentMovies.filter(m => favoritesManager.has(m.id))
     : currentMovies;
@@ -166,7 +181,7 @@ function applyFiltersAndRender() {
 /* ===================================================================
    Favoritos: panel flotante
    =================================================================== */
-function refreshFavoritesPanel() {
+function refreshFavoritesPanel(): void {
   const favs = favoritesManager.getAll();
   els.favCount.textContent = String(favoritesManager.getCount());
   els.favPanelBody.innerHTML = '';
@@ -198,7 +213,7 @@ function refreshFavoritesPanel() {
     removeBtn.addEventListener('click', () => {
       favoritesManager.toggle(movie);
       refreshFavoritesPanel();
-      const cardBtn = els.grid.querySelector(`[data-movie-id="${movie.id}"] .fav-btn`);
+      const cardBtn = els.grid.querySelector<HTMLButtonElement>(`[data-movie-id="${String(movie.id)}"] .fav-btn`);
       if (cardBtn) cardBtn.classList.remove('active');
       if (showingFavoritesOnly) applyFiltersAndRender();
     });
@@ -210,18 +225,18 @@ function refreshFavoritesPanel() {
 }
 
 /* ===================================================================
-   PASO 2 (laboratorio original) — Delegación de eventos: un solo
-   listener en el Grid maneja clics de favoritos y apertura de detalle.
+   Delegación de eventos: un solo listener en el Grid
    =================================================================== */
-els.grid.addEventListener('click', (event) => {
-  const card = event.target.closest('.movie-card');
-  if (!card) return;
+els.grid.addEventListener('click', (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+  const card = target.closest<HTMLElement>('.movie-card');
+  if (!card || !card.dataset.movieId) return;
 
-  const movieId = Number(card.dataset.movieId);
-  const movie = currentMovies.find(m => m.id === movieId);
+  const movieId = card.dataset.movieId;
+  const movie = currentMovies.find(m => String(m.id) === movieId);
   if (!movie) return;
 
-  const favBtn = event.target.closest('[data-action="toggle-fav"]');
+  const favBtn = target.closest<HTMLElement>('[data-action="toggle-fav"]');
   if (favBtn) {
     event.stopPropagation();
     const isFav = favoritesManager.toggle(movie);
@@ -233,36 +248,41 @@ els.grid.addEventListener('click', (event) => {
   openMovieModal(movie, els);
 });
 
-/* Reordenamiento por arrastre (parte "movible" del diseño) */
-els.grid.addEventListener('dragstart', (e) => {
-  const card = e.target.closest('.movie-card');
-  if (!card) return;
+/* Reordenamiento por arrastre */
+els.grid.addEventListener('dragstart', (e: DragEvent) => {
+  const target = e.target as HTMLElement;
+  const card = target.closest<HTMLElement>('.movie-card');
+  if (!card || !e.dataTransfer) return;
   card.classList.add('dragging');
-  e.dataTransfer.setData('text/plain', card.dataset.movieId);
+  e.dataTransfer.setData('text/plain', card.dataset.movieId ?? '');
 });
-els.grid.addEventListener('dragend', (e) => {
-  const card = e.target.closest('.movie-card');
+els.grid.addEventListener('dragend', (e: DragEvent) => {
+  const target = e.target as HTMLElement;
+  const card = target.closest<HTMLElement>('.movie-card');
   if (card) card.classList.remove('dragging');
   els.grid.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
 });
-els.grid.addEventListener('dragover', (e) => {
-  const card = e.target.closest('.movie-card');
+els.grid.addEventListener('dragover', (e: DragEvent) => {
+  const target = e.target as HTMLElement;
+  const card = target.closest<HTMLElement>('.movie-card');
   if (!card) return;
   e.preventDefault();
   card.classList.add('drag-over');
 });
-els.grid.addEventListener('dragleave', (e) => {
-  const card = e.target.closest('.movie-card');
+els.grid.addEventListener('dragleave', (e: DragEvent) => {
+  const target = e.target as HTMLElement;
+  const card = target.closest<HTMLElement>('.movie-card');
   if (card) card.classList.remove('drag-over');
 });
-els.grid.addEventListener('drop', (e) => {
-  const targetCard = e.target.closest('.movie-card');
-  if (!targetCard) return;
+els.grid.addEventListener('drop', (e: DragEvent) => {
+  const target = e.target as HTMLElement;
+  const targetCard = target.closest<HTMLElement>('.movie-card');
+  if (!targetCard || !e.dataTransfer) return;
   e.preventDefault();
   targetCard.classList.remove('drag-over');
 
   const draggedId = e.dataTransfer.getData('text/plain');
-  const draggedCard = els.grid.querySelector(`[data-movie-id="${draggedId}"]`);
+  const draggedCard = els.grid.querySelector<HTMLElement>(`[data-movie-id="${draggedId}"]`);
   if (!draggedCard || draggedCard === targetCard) return;
 
   const cards = [...els.grid.children];
@@ -274,18 +294,20 @@ els.grid.addEventListener('drop', (e) => {
 
 /* Modal */
 els.modalClose.addEventListener('click', () => closeModal(els));
-els.modalBackdrop.addEventListener('click', (e) => {
+els.modalBackdrop.addEventListener('click', (e: MouseEvent) => {
   if (e.target === els.modalBackdrop) closeModal(els);
 });
-document.addEventListener('keydown', (e) => {
+document.addEventListener('keydown', (e: KeyboardEvent) => {
   if (e.key === 'Escape') closeModal(els);
 });
 
 /* Panel de favoritos flotante y movible */
-(function makeFavPanelDraggable() {
-  let offsetX = 0, offsetY = 0, dragging = false;
+(function makeFavPanelDraggable(): void {
+  let offsetX = 0;
+  let offsetY = 0;
+  let dragging = false;
 
-  els.favPanelHandle.addEventListener('mousedown', (e) => {
+  els.favPanelHandle.addEventListener('mousedown', (e: MouseEvent) => {
     dragging = true;
     const rect = els.favPanel.getBoundingClientRect();
     offsetX = e.clientX - rect.left;
@@ -293,7 +315,7 @@ document.addEventListener('keydown', (e) => {
     els.favPanel.style.right = 'auto';
     document.body.style.userSelect = 'none';
   });
-  document.addEventListener('mousemove', (e) => {
+  document.addEventListener('mousemove', (e: MouseEvent) => {
     if (!dragging) return;
     const maxX = window.innerWidth - els.favPanel.offsetWidth;
     const maxY = window.innerHeight - els.favPanel.offsetHeight;
@@ -305,17 +327,19 @@ document.addEventListener('keydown', (e) => {
     document.body.style.userSelect = '';
   });
 
-  els.favPanelHandle.addEventListener('touchstart', (e) => {
+  els.favPanelHandle.addEventListener('touchstart', (e: TouchEvent) => {
     const touch = e.touches[0];
+    if (!touch) return;
     const rect = els.favPanel.getBoundingClientRect();
     offsetX = touch.clientX - rect.left;
     offsetY = touch.clientY - rect.top;
     dragging = true;
     els.favPanel.style.right = 'auto';
   }, { passive: true });
-  document.addEventListener('touchmove', (e) => {
+  document.addEventListener('touchmove', (e: TouchEvent) => {
     if (!dragging) return;
     const touch = e.touches[0];
+    if (!touch) return;
     const maxX = window.innerWidth - els.favPanel.offsetWidth;
     const maxY = window.innerHeight - els.favPanel.offsetHeight;
     els.favPanel.style.left = `${Math.min(Math.max(0, touch.clientX - offsetX), maxX)}px`;
@@ -327,12 +351,13 @@ document.addEventListener('keydown', (e) => {
 /* ===================================================================
    Idioma global
    =================================================================== */
-function applyUILanguage() {
+function applyUILanguage(): void {
   document.documentElement.lang = getLang();
-  document.querySelectorAll('[data-i18n]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
-    const text = t(key);
-    if (text) el.textContent = text;
+    if (!key) return;
+    const text = t(key as Parameters<typeof t>[0]);
+    if (typeof text === 'string') el.textContent = text;
   });
   els.langToggleLabel.textContent = t('langToggle');
   populateGenreSelect(els.genreSelect, GENRES);
@@ -342,17 +367,19 @@ function applyUILanguage() {
 els.langToggleBtn.addEventListener('click', () => {
   setLang(getLang() === 'es' ? 'en' : 'es');
   applyUILanguage();
-  filterCache.clear(); // los textos cambian de idioma: invalidamos caché
-  loadMovies();
+  filterCache.clear();
+  void loadMovies();
 });
 
 /* ===================================================================
    Listeners de filtros
    =================================================================== */
-els.searchBtn.addEventListener('click', loadMovies);
-els.searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadMovies(); });
-els.yearInput.addEventListener('change', loadMovies);
-els.genreSelect.addEventListener('change', handleGenreFilterChange);
+els.searchBtn.addEventListener('click', () => void loadMovies());
+els.searchInput.addEventListener('keydown', (e: KeyboardEvent) => {
+  if (e.key === 'Enter') void loadMovies();
+});
+els.yearInput.addEventListener('change', () => void loadMovies());
+els.genreSelect.addEventListener('change', () => void handleGenreFilterChange());
 
 els.favToggleBtn.addEventListener('click', () => {
   showingFavoritesOnly = !showingFavoritesOnly;
@@ -362,4 +389,4 @@ els.favToggleBtn.addEventListener('click', () => {
 
 /* ------------------------- Arranque ------------------------- */
 applyUILanguage();
-loadMovies();
+void loadMovies();

@@ -1,25 +1,32 @@
 /* =====================================================================
-   render.js
-   PASO 1 del laboratorio original: funciones puras que crean nodos
-   con document.createElement e insertan todo con un DocumentFragment
-   (un solo reflow, en vez de muchos).
+   render.ts
+   Funciones puras que crean nodos con document.createElement e
+   insertan todo con un DocumentFragment (un solo reflow).
    ===================================================================== */
 
-import { CONFIG, getLang, genreMapForLang, t } from './config.js';
+import { CONFIG, getLang, genreMapForLang, t, type Genre } from './config.js';
+import type { MovieEntity } from './entities/movieEntity.js';
+import type { FavoritesManager } from './favorites.js';
 
-export function genreNames(movie) {
-  const ids = movie.genreIds || [];
-  const map = genreMapForLang(getLang());
-  return ids.map(id => map.get(id)).filter(Boolean).join(', ') || t('unclassified');
+export interface GalleryElements {
+  grid: HTMLElement;
+  emptyState: HTMLElement;
 }
 
-export function getPosterUrl(movie) {
+export function genreNames(movie: MovieEntity): string {
+  const ids = movie.genreIds ?? [];
+  const map = genreMapForLang(getLang());
+  const names = ids.map(id => map.get(id)).filter((n): n is string => Boolean(n));
+  return names.length > 0 ? names.join(', ') : t('unclassified');
+}
+
+export function getPosterUrl(movie: MovieEntity): string {
   if (movie.posterPath && movie.posterPath.startsWith('http')) return movie.posterPath;
   if (movie.posterPath) return `${CONFIG.IMG_BASE}${movie.posterPath}`;
-  return `https://picsum.photos/seed/${movie.posterSeed || movie.id}/342/513`;
+  return `https://picsum.photos/seed/${movie.posterSeed ?? movie.id}/342/513`;
 }
 
-export function createMovieCard(movie, favoritesManager) {
+export function createMovieCard(movie: MovieEntity, favoritesManager: FavoritesManager): HTMLElement {
   const card = document.createElement('article');
   card.className = 'movie-card';
   card.dataset.movieId = String(movie.id);
@@ -58,7 +65,7 @@ export function createMovieCard(movie, favoritesManager) {
   return card;
 }
 
-export function renderGallery(movies, favoritesManager, els) {
+export function renderGallery(movies: MovieEntity[], favoritesManager: FavoritesManager, els: GalleryElements): void {
   const frag = document.createDocumentFragment();
   movies.forEach(movie => frag.appendChild(createMovieCard(movie, favoritesManager)));
 
@@ -69,7 +76,7 @@ export function renderGallery(movies, favoritesManager, els) {
   els.grid.hidden = movies.length === 0;
 }
 
-export function populateGenreSelect(genreSelect, GENRES) {
+export function populateGenreSelect(genreSelect: HTMLSelectElement, genres: Genre[]): void {
   const previousValue = genreSelect.value;
   genreSelect.innerHTML = '';
 
@@ -79,9 +86,9 @@ export function populateGenreSelect(genreSelect, GENRES) {
   genreSelect.appendChild(allOpt);
 
   const frag = document.createDocumentFragment();
-  GENRES.forEach(g => {
+  genres.forEach(g => {
     const opt = document.createElement('option');
-    opt.value = g.id;
+    opt.value = String(g.id);
     opt.textContent = g[getLang()];
     frag.appendChild(opt);
   });

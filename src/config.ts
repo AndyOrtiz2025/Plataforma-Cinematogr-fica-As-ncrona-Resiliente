@@ -1,31 +1,45 @@
 /* =====================================================================
-   config.js
+   config.ts
    Configuración global, catálogo de géneros y diccionario de idiomas.
    No depende de ningún otro módulo (es la base de la arquitectura).
    ===================================================================== */
 
-export const CONFIG = {
+export interface AppConfig {
+  API_KEY: string;
+  BASE_URL: string;
+  IMG_BASE: string;
+  SIMULATED_LATENCY_MS: number;
+  SERVICE_FAILURE_RATE: number;
+}
+
+export const CONFIG: AppConfig = {
   API_KEY: 'a31a6665b091c8dfe625ee8550f8c116',
   BASE_URL: 'https://api.themoviedb.org/3',
   IMG_BASE: 'https://image.tmdb.org/t/p/w342',
   SIMULATED_LATENCY_MS: 900,
-  // Probabilidad de que los servicios NO críticos (Reseñas / Anuncios)
-  // fallen de forma simulada — usada por Promise.allSettled en services.js
   SERVICE_FAILURE_RATE: 0.35
 };
 
-export function isApiConfigured() {
-  return CONFIG.API_KEY && CONFIG.API_KEY !== 'PON_AQUI_TU_API_KEY_DE_TMDB';
+export function isApiConfigured(): boolean {
+  return Boolean(CONFIG.API_KEY) && CONFIG.API_KEY !== 'PON_AQUI_TU_API_KEY_DE_TMDB';
 }
 
-export const GENRES = [
+export type Lang = 'es' | 'en';
+
+export interface Genre {
+  id: number;
+  es: string;
+  en: string;
+}
+
+export const GENRES: Genre[] = [
   { id: 28, es: 'Acción', en: 'Action' }, { id: 12, es: 'Aventura', en: 'Adventure' }, { id: 16, es: 'Animación', en: 'Animation' },
   { id: 35, es: 'Comedia', en: 'Comedy' }, { id: 80, es: 'Crimen', en: 'Crime' }, { id: 18, es: 'Drama', en: 'Drama' },
   { id: 14, es: 'Fantasía', en: 'Fantasy' }, { id: 27, es: 'Terror', en: 'Horror' }, { id: 9648, es: 'Misterio', en: 'Mystery' },
   { id: 10749, es: 'Romance', en: 'Romance' }, { id: 878, es: 'Ciencia ficción', en: 'Science Fiction' }, { id: 53, es: 'Suspenso', en: 'Thriller' }
 ];
 
-export function genreMapForLang(lang) {
+export function genreMapForLang(lang: Lang): Map<number, string> {
   return new Map(GENRES.map(g => [g.id, g[lang]]));
 }
 
@@ -33,15 +47,29 @@ export function genreMapForLang(lang) {
    Idioma actual — variable privada del módulo. Se expone solo a través
    de getLang()/setLang() para que ningún otro módulo la mute directo.
    --------------------------------------------------------------------- */
-let currentLang = 'es';
+let currentLang: Lang = 'es';
 
-export function getLang() { return currentLang; }
-export function setLang(lang) { currentLang = lang; }
+export function getLang(): Lang { return currentLang; }
+export function setLang(lang: Lang): void { currentLang = lang; }
 
-export const UI_TEXT = {
+interface UITextDictionary {
+  eyebrow: string; subtitle: string;
+  labelSearch: string; labelGenre: string; labelYear: string; optAll: string;
+  btnSearch: string; btnFavOnly: string;
+  leaderLabel: string; emptyState: string;
+  favPanelTitle: string; favPanelEmpty: string;
+  statusLoading: string; statusDemo: string;
+  statusResults: (n: number) => string;
+  statusError: string; statusCacheHit: string;
+  modalRating: string; unclassified: string;
+  reviewsLabel: string; reviewsUnavailable: string; adsUnavailable: string;
+  langToggle: string;
+}
+
+export const UI_TEXT: Record<Lang, UITextDictionary> = {
   es: {
     eyebrow: 'Función continua · Sesión en vivo',
-    subtitle: 'Galería dinámica de películas — módulos ESM, closures y resiliencia async',
+    subtitle: 'Galería dinámica de películas — TypeScript estricto, DTOs y mappers',
     labelSearch: 'Buscar título', labelGenre: 'Género', labelYear: 'Año', optAll: 'Todos',
     btnSearch: 'Buscar', btnFavOnly: 'Solo favoritos',
     leaderLabel: 'Cargando rollo de datos…',
@@ -50,7 +78,7 @@ export const UI_TEXT = {
     favPanelEmpty: 'Aún no marcas favoritos. Toca la ★ en un póster.',
     statusLoading: 'Consultando 3 servicios en paralelo…',
     statusDemo: 'Modo demo: usando datos simulados (agrega tu API Key para datos reales).',
-    statusResults: n => `${n} resultado(s) encontrados.`,
+    statusResults: (n: number) => `${n} resultado(s) encontrados.`,
     statusError: 'No se pudo cargar el catálogo principal. Revisa tu conexión o API Key.',
     statusCacheHit: 'Resultado servido desde caché (sin red) ⚡',
     modalRating: 'Calificación', unclassified: 'Sin clasificar',
@@ -61,7 +89,7 @@ export const UI_TEXT = {
   },
   en: {
     eyebrow: 'Continuous showing · Live session',
-    subtitle: 'Dynamic movie gallery — ESM modules, closures and async resilience',
+    subtitle: 'Dynamic movie gallery — strict TypeScript, DTOs and mappers',
     labelSearch: 'Search title', labelGenre: 'Genre', labelYear: 'Year', optAll: 'All',
     btnSearch: 'Search', btnFavOnly: 'Favorites only',
     leaderLabel: 'Loading data reel…',
@@ -70,7 +98,7 @@ export const UI_TEXT = {
     favPanelEmpty: 'No favorites yet. Tap the ★ on a poster.',
     statusLoading: 'Querying 3 services in parallel…',
     statusDemo: 'Demo mode: using mock data (add your API Key for real data).',
-    statusResults: n => `${n} result(s) found.`,
+    statusResults: (n: number) => `${n} result(s) found.`,
     statusError: 'Could not load the main catalog. Check your connection or API Key.',
     statusCacheHit: 'Result served from cache (no network) ⚡',
     modalRating: 'Rating', unclassified: 'Unclassified',
@@ -81,6 +109,6 @@ export const UI_TEXT = {
   }
 };
 
-export function t(key) {
+export function t<K extends keyof UITextDictionary>(key: K): UITextDictionary[K] {
   return UI_TEXT[currentLang][key];
 }

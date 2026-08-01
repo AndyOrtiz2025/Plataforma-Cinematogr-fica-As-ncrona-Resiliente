@@ -1,50 +1,65 @@
 /* =====================================================================
-   services.js
-   REQUISITO 1 DE LA TAREA — Orquestación concurrente resiliente.
-
-   Simula 3 "backends" independientes:
-     1. Catálogo de Películas   (CRÍTICO — si falla, no hay app)
-     2. Reseñas de Usuarios     (opcional — puede fallar sin romper nada)
-     3. Anuncios Promocionales  (opcional — puede fallar sin romper nada)
-
-   loadHomeData() los consulta con Promise.allSettled, que a diferencia
-   de Promise.all, NO se rechaza completo si una sola promesa falla:
-   cada resultado trae { status: 'fulfilled' | 'rejected', ... } por
-   separado, y así el catálogo se puede renderizar aunque Reseñas o
-   Anuncios hayan fallado.
+   services.ts
+   Simula 3 "backends" independientes: Catálogo (crítico), Reseñas y
+   Anuncios (opcionales). Aquí es donde el patrón DTO → Mapper → Entity
+   se pone en práctica: cada servicio entrega su DTO crudo, y antes de
+   devolverlo al resto de la app lo pasamos por su mapper.
    ===================================================================== */
 
-import { CONFIG, isApiConfigured, getLang } from './js/config.js';
+import { CONFIG, isApiConfigured, getLang } from './config.js';
+import type { TMDBMovieDTO, TMDBResponseDTO, MockMovieDTO } from './dtos/catalogDTO.js';
+import type { ReviewsServiceDTO } from './dtos/reviewsDTO.js';
+import type { AdsServiceDTO } from './dtos/adsDTO.js';
+import type { MovieEntity } from './entities/movieEntity.js';
+import type { ReviewsEntity } from './entities/reviewsEntity.js';
+import type { AdEntity } from './entities/adsEntity.js';
+import { mapTMDBMovieToEntity, mapMockMovieToEntity } from './mappers/movieMapper.js';
+import { mapReviewsToEntity } from './mappers/reviewsMapper.js';
+import { mapAdsToEntity } from './mappers/adsMapper.js';
 
 /* -----------------------------------------------------------------
-   Panel de depuración para el screencast: desde la consola del
-   navegador puedes forzar que un servicio falle en vivo, ej:
-     CINEGRID_DEBUG.forceReviewsError = true
-     CINEGRID_DEBUG.forceAdsError = true
+   Panel de depuración: desde la consola del navegador se puede forzar
+   que un servicio falle en vivo, ej: CINEGRID_DEBUG.forceAdsError = true
    ----------------------------------------------------------------- */
-export const CINEGRID_DEBUG = {
+export interface DebugFlags {
+  forceReviewsError: boolean;
+  forceAdsError: boolean;
+}
+
+declare global {
+  interface Window {
+    CINEGRID_DEBUG: DebugFlags;
+  }
+}
+
+export const CINEGRID_DEBUG: DebugFlags = {
   forceReviewsError: false,
   forceAdsError: false
 };
-if (typeof window !== 'undefined') window.CINEGRID_DEBUG = CINEGRID_DEBUG;
+window.CINEGRID_DEBUG = CINEGRID_DEBUG;
 
-/* PASO 4 del laboratorio original: Promise envuelta en setTimeout. */
-export function simulateNetworkLatency(dataFactory, ms = CONFIG.SIMULATED_LATENCY_MS) {
+/* Promise envuelta en setTimeout — simula latencia de red.
+   Acepta una factory síncrona (T) o asíncrona (Promise<T>) — cubre
+   tanto el catálogo mock (síncrono) como TMDB (asíncrono) sin
+   duplicar lógica ni anidar promesas por accidente. */
+export function simulateNetworkLatency<T>(
+  dataFactory: () => T | Promise<T>,
+  ms: number = CONFIG.SIMULATED_LATENCY_MS
+): Promise<T> {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
-      try {
-        resolve(dataFactory());
-      } catch (err) {
-        reject(err);
-      }
+      Promise.resolve()
+        .then(() => dataFactory())
+        .then(resolve)
+        .catch((err: unknown) => reject(err instanceof Error ? err : new Error(String(err))));
     }, ms);
   });
 }
 
 /* =====================================================================
-   Datos simulados (fallback si no hay API Key configurada)
+   Catálogo simulado (fallback sin API Key) — DTO crudo
    ===================================================================== */
-const MOCK_MOVIES = [
+const MOCK_MOVIES: MockMovieDTO[] = [
   { id: 1, title: 'Ecos de Neón', year: 2023, genreIds: [878, 53], rating: 8.1, posterSeed: 'neon-echoes', overview: 'Un detective sintético investiga una serie de asesinatos en una metrópolis donde la memoria se puede comprar y vender.' },
   { id: 2, title: 'La Última Butaca', year: 2019, genreIds: [18, 9648], rating: 7.6, posterSeed: 'last-seat', overview: 'El proyeccionista de un cine a punto de cerrar descubre un rollo de película que predice el futuro de sus espectadores.' },
   { id: 3, title: 'Risas de Medianoche', year: 2021, genreIds: [35], rating: 6.9, posterSeed: 'midnight-laughs', overview: 'Cuatro comediantes quedan encerrados en un club nocturno la noche de fin de año y deben improvisar para sobrevivir al amanecer.' },
@@ -57,20 +72,14 @@ const MOCK_MOVIES = [
   { id: 10, title: 'Frecuencia Fantasma', year: 2023, genreIds: [27, 878], rating: 6.8, posterSeed: 'ghost-frequency', overview: 'Un técnico de radio capta una señal que transmite eventos veinticuatro horas antes de que sucedan.' }
 ];
 
-function normalizeTMDBMovie(raw) {
-  return {
-    id: raw.id,
-    title: raw.title,
-    year: (raw.release_date || '').slice(0, 4) || '—',
-    genreIds: raw.genre_ids || [],
-    rating: raw.vote_average ? Number(raw.vote_average.toFixed(1)) : null,
-    posterPath: raw.poster_path,
-    overview: raw.overview || 'Sin sinopsis disponible.'
-  };
+export interface CatalogFilters {
+  query?: string;
+  genreId?: string;
+  year?: string;
 }
 
-async function fetchFromTMDB({ query = '', genreId = '', year = '' } = {}) {
-  let url;
+async function fetchFromTMDB({ query = '', genreId = '', year = '' }: CatalogFilters): Promise<MovieEntity[]> {
+  let url: URL;
   if (query) {
     url = new URL(`${CONFIG.BASE_URL}/search/movie`);
     url.searchParams.set('query', query);
@@ -87,8 +96,13 @@ async function fetchFromTMDB({ query = '', genreId = '', year = '' } = {}) {
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`TMDB respondió ${res.status}`);
-  const json = await res.json();
-  let results = (json.results || []).map(normalizeTMDBMovie);
+
+  // DTO crudo, tal como lo entrega TMDB
+  const json = (await res.json()) as TMDBResponseDTO;
+  const rawResults: TMDBMovieDTO[] = json.results ?? [];
+
+  // Mapper: DTO crudo → Entity limpia
+  let results: MovieEntity[] = rawResults.map(mapTMDBMovieToEntity);
 
   if (genreId && query) {
     results = results.filter(m => m.genreIds.includes(Number(genreId)));
@@ -96,81 +110,87 @@ async function fetchFromTMDB({ query = '', genreId = '', year = '' } = {}) {
   return results;
 }
 
-function fetchFromMock({ query = '', genreId = '', year = '' } = {}) {
+function fetchFromMock({ query = '', genreId = '', year = '' }: CatalogFilters): MovieEntity[] {
   const q = query.trim().toLowerCase();
-  return MOCK_MOVIES.filter(m => {
-    const matchesQuery = !q || m.title.toLowerCase().includes(q);
-    const matchesGenre = !genreId || m.genreIds.includes(Number(genreId));
-    const matchesYear = !year || String(m.year) === String(year);
-    return matchesQuery && matchesGenre && matchesYear;
-  });
+  return MOCK_MOVIES
+    .filter(m => {
+      const matchesQuery = !q || m.title.toLowerCase().includes(q);
+      const matchesGenre = !genreId || m.genreIds.includes(Number(genreId));
+      const matchesYear = !year || String(m.year) === String(year);
+      return matchesQuery && matchesGenre && matchesYear;
+    })
+    .map(mapMockMovieToEntity); // Mapper: DTO crudo → Entity limpia
 }
 
-/* =====================================================================
-   SERVICIO 1 — Catálogo de Películas (CRÍTICO)
-   ===================================================================== */
-export function fetchCatalogService(filters = {}) {
-  const factory = isApiConfigured()
-    ? () => fetchFromTMDB(filters)
-    : () => fetchFromMock(filters);
-  return simulateNetworkLatency(factory);
+/* SERVICIO 1 — Catálogo de Películas (CRÍTICO) */
+export function fetchCatalogService(filters: CatalogFilters = {}): Promise<MovieEntity[]> {
+  return isApiConfigured()
+    ? simulateNetworkLatency(() => fetchFromTMDB(filters))
+    : simulateNetworkLatency(() => fetchFromMock(filters));
 }
 
-/* =====================================================================
-   SERVICIO 2 — Reseñas de Usuarios (opcional, puede fallar)
-   ===================================================================== */
-export function fetchReviewsService() {
+/* SERVICIO 2 — Reseñas de Usuarios (opcional, puede fallar) */
+export function fetchReviewsService(): Promise<ReviewsEntity> {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       if (CINEGRID_DEBUG.forceReviewsError || Math.random() < CONFIG.SERVICE_FAILURE_RATE) {
         reject(new Error('Servicio de Reseñas no disponible (timeout simulado)'));
         return;
       }
-      resolve({
+      const dto: ReviewsServiceDTO = {
         averageRating: (Math.random() * 2 + 7).toFixed(1),
         totalReviews: Math.floor(Math.random() * 500) + 50
-      });
+      };
+      resolve(mapReviewsToEntity(dto)); // Mapper: DTO crudo → Entity limpia
     }, 500 + Math.random() * 500);
   });
 }
 
-/* =====================================================================
-   SERVICIO 3 — Anuncios Promocionales (opcional, puede fallar)
-   ===================================================================== */
-export function fetchAdsService() {
+/* SERVICIO 3 — Anuncios Promocionales (opcional, puede fallar) */
+export function fetchAdsService(): Promise<AdEntity> {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       if (CINEGRID_DEBUG.forceAdsError || Math.random() < CONFIG.SERVICE_FAILURE_RATE) {
         reject(new Error('Servicio de Anuncios no disponible (timeout simulado)'));
         return;
       }
-      resolve({ banner: '🍿 Estreno especial esta semana — 2x1 en boletos' });
+      const dto: AdsServiceDTO = { banner: '🍿 Estreno especial esta semana — 2x1 en boletos' };
+      resolve(mapAdsToEntity(dto)); // Mapper: DTO crudo → Entity limpia
     }, 400 + Math.random() * 500);
   });
 }
 
-/* =====================================================================
-   ORQUESTACIÓN RESILIENTE — Promise.allSettled
-   Las 3 llamadas salen en paralelo. Si Reseñas o Anuncios fallan, el
-   catálogo se sigue mostrando con normalidad (degradación con gracia).
-   ===================================================================== */
-export async function loadHomeData(filters) {
+export interface HomeData {
+  movies: MovieEntity[];
+  reviews: ReviewsEntity | null;
+  reviewsError: string | null;
+  ads: AdEntity | null;
+  adsError: string | null;
+}
+
+/* ORQUESTACIÓN RESILIENTE — Promise.allSettled */
+export async function loadHomeData(filters: CatalogFilters): Promise<HomeData> {
   const [catalogResult, reviewsResult, adsResult] = await Promise.allSettled([
     fetchCatalogService(filters),
     fetchReviewsService(),
     fetchAdsService()
   ]);
 
-  // El catálogo SÍ es crítico: sin él, no hay nada que mostrar.
   if (catalogResult.status === 'rejected') {
-    throw catalogResult.reason;
+    throw catalogResult.reason instanceof Error
+      ? catalogResult.reason
+      : new Error(String(catalogResult.reason));
   }
 
   return {
     movies: catalogResult.value,
     reviews: reviewsResult.status === 'fulfilled' ? reviewsResult.value : null,
-    reviewsError: reviewsResult.status === 'rejected' ? reviewsResult.reason.message : null,
+    reviewsError: reviewsResult.status === 'rejected'
+      ? (reviewsResult.reason instanceof Error ? reviewsResult.reason.message : String(reviewsResult.reason))
+      : null,
     ads: adsResult.status === 'fulfilled' ? adsResult.value : null,
-    adsError: adsResult.status === 'rejected' ? adsResult.reason.message : null
+    adsError: adsResult.status === 'rejected'
+      ? (adsResult.reason instanceof Error ? adsResult.reason.message : String(adsResult.reason))
+      : null
   };
 }

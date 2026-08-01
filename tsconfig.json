@@ -1,0 +1,27 @@
+{
+  // tsconfig.json — CineGrid (Laboratorio 3)
+  // Migración a TypeScript en modo estricto, compilando ESM para el navegador.
+  "compilerOptions": {
+    /* ---- Layout de archivos ---- */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* ---- Entorno de ejecución: navegador con módulos ESM ---- */
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+
+    /* ---- Directivas de restricción OBLIGATORIAS del laboratorio ---- */
+    "strict": true,
+    "noImplicitAny": true,
+    "noEmitOnError": true,
+
+    /* ---- Buenas prácticas adicionales ---- */
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"]
+}

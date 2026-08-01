@@ -1,14 +1,19 @@
 /* =====================================================================
-   modal.js
-   La "alerta interactiva" del Paso 2 original: detalle extendido de
-   la película seleccionada, con delegación de eventos manejada desde
-   main.js (aquí solo vive el render del contenido).
+   modal.ts
+   La "alerta interactiva": detalle extendido de la película
+   seleccionada.
    ===================================================================== */
 
 import { getLang, t } from './config.js';
 import { genreNames, getPosterUrl } from './render.js';
+import type { MovieEntity } from './entities/movieEntity.js';
 
-export function renderModalBody(movie, modalContent) {
+export interface ModalElements {
+  modalBackdrop: HTMLElement;
+  modalContent: HTMLElement;
+}
+
+export function renderModalBody(movie: MovieEntity, modalContent: HTMLElement): void {
   modalContent.innerHTML = '';
 
   const img = document.createElement('img');
@@ -31,11 +36,11 @@ export function renderModalBody(movie, modalContent) {
   modalContent.append(img, h2, meta, overview);
 }
 
-export function openMovieModal(movie, els) {
+export function openMovieModal(movie: MovieEntity, els: ModalElements): void {
   renderModalBody(movie, els.modalContent);
   els.modalBackdrop.hidden = false;
 }
 
-export function closeModal(els) {
+export function closeModal(els: ModalElements): void {
   els.modalBackdrop.hidden = true;
 }
