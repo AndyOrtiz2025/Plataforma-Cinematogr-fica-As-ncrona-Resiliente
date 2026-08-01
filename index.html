@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CINEGRID · Plataforma Cinematográfica Asíncrona Resiliente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== TOGGLE DE IDIOMA (GLOBAL) ===================== -->
+<button class="lang-toggle" id="langToggleBtn" type="button" aria-label="Cambiar idioma de toda la página">
+  <span id="langToggleLabel">🌐 EN</span>
+</button>
+
+<!-- ===================== MARQUESINA / HEADER ===================== -->
+<header class="marquee">
+  <div class="marquee__bulbs" aria-hidden="true"></div>
+  <div class="marquee__inner">
+    <p class="marquee__eyebrow" data-i18n="eyebrow">Función continua · Sesión en vivo</p>
+    <h1 class="marquee__title">CINE<span>GRID</span></h1>
+    <p class="marquee__sub" data-i18n="subtitle">Galería dinámica de películas — módulos ESM, closures y resiliencia async</p>
+  </div>
+  <div class="marquee__bulbs" aria-hidden="true"></div>
+</header>
+
+<!-- ===================== TAQUILLA / FILTROS ===================== -->
+<section class="boxoffice" aria-label="Filtros de búsqueda">
+  <div class="boxoffice__row">
+    <div class="field field--search">
+      <label for="searchInput" data-i18n="labelSearch">Buscar título</label>
+      <input type="text" id="searchInput" placeholder="Ej. Interstellar, El Padrino..." autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label for="genreSelect" data-i18n="labelGenre">Género</label>
+      <select id="genreSelect">
+        <option value="" data-i18n="optAll">Todos</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="yearInput" data-i18n="labelYear">Año</label>
+      <input type="number" id="yearInput" placeholder="2024" min="1900" max="2100">
+    </div>
+
+    <button class="btn btn--primary" id="searchBtn" type="button" data-i18n="btnSearch">Buscar</button>
+    <button class="btn btn--ghost" id="favToggleBtn" type="button" aria-pressed="false">
+      ★ <span data-i18n="btnFavOnly">Solo favoritos</span>
+    </button>
+  </div>
+  <p class="boxoffice__status" id="statusLine" role="status" aria-live="polite"></p>
+
+  <!-- Servicios opcionales (REQUISITO 1): se degradan con gracia si fallan -->
+  <p class="service-banner ads-banner" id="adsBanner" hidden></p>
+  <p class="service-banner reviews-badge" id="reviewsBadge" hidden></p>
+</section>
+
+<!-- ===================== GALERÍA PRINCIPAL ===================== -->
+<main>
+  <!-- Spinner: Leader de película (cuenta regresiva) -->
+  <div class="film-leader" id="filmLeader" hidden>
+    <svg viewBox="0 0 120 120" class="film-leader__svg" aria-hidden="true">
+      <circle class="film-leader__track" cx="60" cy="60" r="52"></circle>
+      <circle class="film-leader__sweep" cx="60" cy="60" r="52"></circle>
+      <line x1="60" y1="8" x2="60" y2="24" class="film-leader__tick"></line>
+      <line x1="60" y1="96" x2="60" y2="112" class="film-leader__tick"></line>
+      <line x1="8" y1="60" x2="24" y2="60" class="film-leader__tick"></line>
+      <line x1="96" y1="60" x2="112" y2="60" class="film-leader__tick"></line>
+    </svg>
+    <span class="film-leader__number" id="leaderNumber">3</span>
+    <p class="film-leader__label" data-i18n="leaderLabel">Cargando rollo de datos…</p>
+  </div>
+
+  <p class="empty-state" id="emptyState" hidden data-i18n="emptyState">No hay tomas que coincidan con este encuadre. Ajusta tus filtros.</p>
+
+  <div class="grid" id="movieGrid" aria-live="polite"></div>
+</main>
+
+<!-- ===================== PANEL FLOTANTE DE FAVORITOS (MOVIBLE) ===================== -->
+<aside class="fav-panel" id="favPanel">
+  <header class="fav-panel__handle" id="favPanelHandle">
+    <span>★ <span data-i18n="favPanelTitle">VIP · Favoritos</span></span>
+    <span class="fav-panel__count" id="favCount">0</span>
+  </header>
+  <div class="fav-panel__body" id="favPanelBody">
+    <p class="fav-panel__empty" data-i18n="favPanelEmpty">Aún no marcas favoritos. Toca la ★ en un póster.</p>
+  </div>
+</aside>
+
+<!-- ===================== MODAL DE DETALLE (ALERTA INTERACTIVA) ===================== -->
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button class="modal__close" id="modalClose" aria-label="Cerrar">✕</button>
+    <div class="modal__content" id="modalContent"></div>
+  </div>
+</div>
+
+<!-- type="module" habilita import/export (ECMAScript Modules) -->
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
