@@ -1,11 +1,8 @@
 /* =====================================================================
-   filterCache.ts
+   filter-cache.ts
    Caché asíncrono encapsulado por clausura. `cache` es un objeto
    PRIVADO — invisible fuera de este closure, solo accesible a través
    de los métodos que se retornan.
-
-   Se usa <T> genérico para poder tipar exactamente qué guarda cada
-   instancia (en nuestro caso, MovieEntity[]).
    ===================================================================== */
 
 export interface FilterCache<T> {

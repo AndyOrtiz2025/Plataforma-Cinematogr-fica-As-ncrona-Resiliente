@@ -1,7 +1,6 @@
 /* =====================================================================
-   entities/reviewsEntity.ts
-   Forma LIMPIA de las reseñas — el averageRating ya es number, no
-   string como venía en el DTO crudo.
+   entities/reviews.entity.ts
+   Forma LIMPIA de las reseñas — averageRating ya es number.
    ===================================================================== */
 
 export interface ReviewsEntity {

@@ -3,21 +3,20 @@
    Importa todos los módulos y conecta el DOM con la lógica.
    ===================================================================== */
 
-import { CONFIG, GENRES, isApiConfigured, getLang, setLang, t } from './config.js';
+import { CONFIG, GENRES, getLang, setLang, t } from './config.js';
 import { createFavoritesManager, type FavoritesManager } from './favorites.js';
-import { createFilterCache } from './filterCache.js';
-import { fetchCatalogService, loadHomeData } from './services.js';
+import { createFilterCache } from './filter-cache.js';
+import { getCatalog, type CatalogFilters } from './services/catalog.service.js';
+import { loadHomeData } from './services/orchestrator.service.js';
 import { renderGallery, populateGenreSelect, getPosterUrl } from './render.js';
 import { openMovieModal, closeModal } from './modal.js';
-import type { MovieEntity } from './entities/movieEntity.js';
-import type { ReviewsEntity } from './entities/reviewsEntity.js';
-import type { AdEntity } from './entities/adsEntity.js';
+import type { MovieEntity } from './entities/movie.entity.js';
+import type { ReviewsEntity } from './entities/reviews.entity.js';
+import type { AdEntity } from './entities/ads.entity.js';
+import './services/debug.service.js'; // deja CINEGRID_DEBUG disponible en window
 
 /* -----------------------------------------------------------------
    Helper para obtener elementos del DOM con seguridad de tipos.
-   Bajo "strict", getElementById regresa `HTMLElement | null` — este
-   helper lanza un error claro en vez de dejar pasar un `null` que
-   rompería algo más adelante en tiempo de ejecución.
    ----------------------------------------------------------------- */
 function getEl<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -53,7 +52,9 @@ const els = {
 /* ------------------------- Estado de la aplicación ------------------------- */
 const favoritesManager: FavoritesManager = createFavoritesManager();
 
-const filterCache = createFilterCache<MovieEntity[]>(genreId => fetchCatalogService({ genreId }));
+// REQUISITO: closure de caché — cuando se pide un género ya
+// consultado, regresa de inmediato sin volver a llamar a la API real.
+const filterCache = createFilterCache<MovieEntity[]>(genreId => getCatalog({ genreId }));
 
 let currentMovies: MovieEntity[] = [];
 let showingFavoritesOnly = false;
@@ -113,17 +114,18 @@ function renderServiceBanners({ reviews, reviewsError, ads, adsError }: ServiceB
 }
 
 /* ===================================================================
-   Carga principal — Promise.allSettled (inicial, buscar, año)
+   Carga principal — Promise.allSettled contra los 3 servicios
+   (Catálogo real de TMDB + Reseñas/Anuncios simulados)
    =================================================================== */
 async function loadMovies(): Promise<void> {
   els.filmLeader.hidden = false;
   els.emptyState.hidden = true;
   els.grid.hidden = true;
-  els.statusLine.textContent = isApiConfigured() ? t('statusLoading') : t('statusDemo');
+  els.statusLine.textContent = t('statusLoading');
 
   const countdownHandle = runCountdown(CONFIG.SIMULATED_LATENCY_MS);
 
-  const filters = {
+  const filters: CatalogFilters = {
     query: els.searchInput.value.trim(),
     genreId: els.genreSelect.value,
     year: els.yearInput.value.trim()
@@ -232,8 +234,8 @@ els.grid.addEventListener('click', (event: MouseEvent) => {
   const card = target.closest<HTMLElement>('.movie-card');
   if (!card || !card.dataset.movieId) return;
 
-  const movieId = card.dataset.movieId;
-  const movie = currentMovies.find(m => String(m.id) === movieId);
+  const movieId = Number(card.dataset.movieId);
+  const movie = currentMovies.find(m => m.id === movieId);
   if (!movie) return;
 
   const favBtn = target.closest<HTMLElement>('[data-action="toggle-fav"]');
@@ -367,7 +369,7 @@ function applyUILanguage(): void {
 els.langToggleBtn.addEventListener('click', () => {
   setLang(getLang() === 'es' ? 'en' : 'es');
   applyUILanguage();
-  filterCache.clear();
+  filterCache.clear(); // los textos cambian de idioma: invalidamos caché
   void loadMovies();
 });
 

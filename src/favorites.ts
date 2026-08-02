@@ -6,7 +6,7 @@
    que este factory expone.
    ===================================================================== */
 
-import type { MovieEntity } from './entities/movieEntity.js';
+import type { MovieEntity } from './entities/movie.entity.js';
 
 export interface FavoritesManager {
   toggle(movie: MovieEntity): boolean;

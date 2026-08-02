@@ -3,23 +3,23 @@
    Paleta: sala de cine nocturna con luces de marquesina cálidas.
    ===================================================================== */
 :root{
-  --bg-void: #0b0a0e;
-  --bg-panel: #16141c;
-  --bg-panel-raised: #201d28;
-  --gold: #d4af37;
-  --gold-soft: #e9c96a;
+  --bg-void: #faf8f4;
+  --bg-panel: #ffffff;
+  --bg-panel-raised: #f2efe7;
+  --gold: #b8862b;
+  --gold-soft: #8f6a1f;
   --crimson: #c22e38;
   --crimson-soft: #e2555f;
-  --text-primary: #f3eee3;
-  --text-muted: #9b95a3;
-  --border: #2c283580;
+  --text-primary: #211d17;
+  --text-muted: #6f6a63;
+  --border: #ddd6c8;
 
   --font-display: 'Bebas Neue', sans-serif;
   --font-body: 'Manrope', sans-serif;
   --font-mono: 'Space Mono', monospace;
 
   --radius: 14px;
-  --shadow-lg: 0 20px 60px -20px rgba(0,0,0,0.7);
+  --shadow-lg: 0 20px 50px -20px rgba(33,29,23,0.25);
 }
 
 *{ box-sizing: border-box; }
@@ -51,7 +51,7 @@
 
 html, body{
   margin:0; padding:0;
-  background: radial-gradient(ellipse at top, #16131c 0%, var(--bg-void) 55%);
+  background: radial-gradient(ellipse at top, #ffffff 0%, var(--bg-void) 55%);
   color: var(--text-primary);
   font-family: var(--font-body);
   min-height: 100vh;
@@ -307,9 +307,9 @@ button{ font-family: inherit; cursor:pointer; }
   top: 8px; right: 8px;
   width: 34px; height: 34px;
   border-radius: 50%;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255,255,255,0.25);
   background: rgba(11,10,14,0.7);
-  color: var(--text-muted);
+  color: #e8e4da;
   font-size: 1.1rem;
   display:flex; align-items:center; justify-content:center;
   backdrop-filter: blur(4px);

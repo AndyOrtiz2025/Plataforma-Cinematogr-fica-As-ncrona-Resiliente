@@ -6,7 +6,7 @@
 
 import { getLang, t } from './config.js';
 import { genreNames, getPosterUrl } from './render.js';
-import type { MovieEntity } from './entities/movieEntity.js';
+import type { MovieEntity } from './entities/movie.entity.js';
 
 export interface ModalElements {
   modalBackdrop: HTMLElement;

@@ -20,10 +20,6 @@ export const CONFIG: AppConfig = {
   SERVICE_FAILURE_RATE: 0.35
 };
 
-export function isApiConfigured(): boolean {
-  return Boolean(CONFIG.API_KEY) && CONFIG.API_KEY !== 'PON_AQUI_TU_API_KEY_DE_TMDB';
-}
-
 export type Lang = 'es' | 'en';
 
 export interface Genre {
@@ -58,7 +54,7 @@ interface UITextDictionary {
   btnSearch: string; btnFavOnly: string;
   leaderLabel: string; emptyState: string;
   favPanelTitle: string; favPanelEmpty: string;
-  statusLoading: string; statusDemo: string;
+  statusLoading: string;
   statusResults: (n: number) => string;
   statusError: string; statusCacheHit: string;
   modalRating: string; unclassified: string;
@@ -76,8 +72,7 @@ export const UI_TEXT: Record<Lang, UITextDictionary> = {
     emptyState: 'No hay tomas que coincidan con este encuadre. Ajusta tus filtros.',
     favPanelTitle: 'VIP · Favoritos',
     favPanelEmpty: 'Aún no marcas favoritos. Toca la ★ en un póster.',
-    statusLoading: 'Consultando 3 servicios en paralelo…',
-    statusDemo: 'Modo demo: usando datos simulados (agrega tu API Key para datos reales).',
+    statusLoading: 'Consultando 3 servicios en paralelo (TMDB en vivo)…',
     statusResults: (n: number) => `${n} resultado(s) encontrados.`,
     statusError: 'No se pudo cargar el catálogo principal. Revisa tu conexión o API Key.',
     statusCacheHit: 'Resultado servido desde caché (sin red) ⚡',
@@ -96,8 +91,7 @@ export const UI_TEXT: Record<Lang, UITextDictionary> = {
     emptyState: 'No shots match this frame. Adjust your filters.',
     favPanelTitle: 'VIP · Favorites',
     favPanelEmpty: 'No favorites yet. Tap the ★ on a poster.',
-    statusLoading: 'Querying 3 services in parallel…',
-    statusDemo: 'Demo mode: using mock data (add your API Key for real data).',
+    statusLoading: 'Querying 3 services in parallel (live TMDB)…',
     statusResults: (n: number) => `${n} result(s) found.`,
     statusError: 'Could not load the main catalog. Check your connection or API Key.',
     statusCacheHit: 'Result served from cache (no network) ⚡',

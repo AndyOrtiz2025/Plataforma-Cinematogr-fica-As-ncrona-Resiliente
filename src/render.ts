@@ -5,7 +5,7 @@
    ===================================================================== */
 
 import { CONFIG, getLang, genreMapForLang, t, type Genre } from './config.js';
-import type { MovieEntity } from './entities/movieEntity.js';
+import type { MovieEntity } from './entities/movie.entity.js';
 import type { FavoritesManager } from './favorites.js';
 
 export interface GalleryElements {
@@ -21,9 +21,10 @@ export function genreNames(movie: MovieEntity): string {
 }
 
 export function getPosterUrl(movie: MovieEntity): string {
-  if (movie.posterPath && movie.posterPath.startsWith('http')) return movie.posterPath;
   if (movie.posterPath) return `${CONFIG.IMG_BASE}${movie.posterPath}`;
-  return `https://picsum.photos/seed/${movie.posterSeed ?? movie.id}/342/513`;
+  // TMDB a veces no tiene póster para una película — usamos un
+  // placeholder visual determinista basado en su id real.
+  return `https://picsum.photos/seed/${movie.id}/342/513`;
 }
 
 export function createMovieCard(movie: MovieEntity, favoritesManager: FavoritesManager): HTMLElement {
