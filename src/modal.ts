@@ -6,38 +6,38 @@
 
 import { getLang, t } from './config.js';
 import { genreNames, getPosterUrl } from './render.js';
-import type { MovieEntity } from './entities/movie.entity.js';
+import type { CatalogEntity } from './entities/catalog-entity.js';
 
 export interface ModalElements {
   modalBackdrop: HTMLElement;
   modalContent: HTMLElement;
 }
 
-export function renderModalBody(movie: MovieEntity, modalContent: HTMLElement): void {
+export function renderModalBody(item: CatalogEntity, modalContent: HTMLElement): void {
   modalContent.innerHTML = '';
 
   const img = document.createElement('img');
-  img.src = getPosterUrl(movie);
-  img.alt = `${getLang() === 'en' ? 'Poster of' : 'Póster de'} ${movie.title}`;
+  img.src = getPosterUrl(item);
+  img.alt = `${getLang() === 'en' ? 'Poster of' : 'Póster de'} ${item.title}`;
 
   const h2 = document.createElement('h2');
   h2.id = 'modalTitle';
-  h2.textContent = movie.title;
+  h2.textContent = item.title;
 
   const meta = document.createElement('p');
   meta.className = 'modal-meta';
-  const ratingText = movie.rating ? ` · ${t('modalRating')} ${movie.rating}/10` : '';
-  meta.textContent = `${movie.year} · ${genreNames(movie)}${ratingText}`;
+  const ratingText = item.rating ? ` · ${t('modalRating')} ${item.rating}/10` : '';
+  meta.textContent = `${item.year} · ${genreNames(item)}${ratingText}`;
 
   const overview = document.createElement('p');
   overview.className = 'overview';
-  overview.textContent = movie.overview || (getLang() === 'en' ? 'Loading synopsis…' : 'Cargando sinopsis…');
+  overview.textContent = item.overview || (getLang() === 'en' ? 'Loading synopsis…' : 'Cargando sinopsis…');
 
   modalContent.append(img, h2, meta, overview);
 }
 
-export function openMovieModal(movie: MovieEntity, els: ModalElements): void {
-  renderModalBody(movie, els.modalContent);
+export function openMovieModal(item: CatalogEntity, els: ModalElements): void {
+  renderModalBody(item, els.modalContent);
   els.modalBackdrop.hidden = false;
 }
 

@@ -4,23 +4,32 @@
    parte del código (ni la consola del navegador) puede tocar la
    variable `favorites` directamente — solo mediante los métodos
    que este factory expone.
+
+   Acepta CatalogEntity (Movie | Series | Documentary) — un favorito
+   puede ser cualquiera de los 3 tipos — pero solo GUARDA los campos
+   que de verdad hacen falta (CatalogCardFields, un Pick<...>).
    ===================================================================== */
 
-import type { MovieEntity } from './entities/movie.entity.js';
+import type { CatalogEntity, CatalogCardFields } from './entities/catalog-entity.js';
+
+function toCardFields(item: CatalogEntity): CatalogCardFields {
+  const { id, title, year, genreIds, rating, posterPath } = item;
+  return { id, title, year, genreIds, rating, posterPath };
+}
 
 export interface FavoritesManager {
-  toggle(movie: MovieEntity): boolean;
-  has(id: MovieEntity['id']): boolean;
+  toggle(item: CatalogEntity): boolean;
+  has(id: CatalogEntity['id']): boolean;
   getCount(): number;
-  getAll(): MovieEntity[];
+  getAll(): CatalogCardFields[];
 }
 
 export function createFavoritesManager(): FavoritesManager {
-  const favorites = new Map<MovieEntity['id'], MovieEntity>(); // <- privada, vive en el closure
+  const favorites = new Map<CatalogEntity['id'], CatalogCardFields>(); // <- privada, vive en el closure
 
   try {
     const raw = localStorage.getItem('cinegrid_favorites') ?? '[]';
-    const saved = JSON.parse(raw) as MovieEntity[];
+    const saved = JSON.parse(raw) as CatalogCardFields[];
     saved.forEach(m => favorites.set(m.id, m));
   } catch {
     // localStorage no disponible o corrupto: iniciamos vacío
@@ -31,22 +40,22 @@ export function createFavoritesManager(): FavoritesManager {
   }
 
   return {
-    toggle(movie: MovieEntity): boolean {
-      if (favorites.has(movie.id)) {
-        favorites.delete(movie.id);
+    toggle(item: CatalogEntity): boolean {
+      if (favorites.has(item.id)) {
+        favorites.delete(item.id);
       } else {
-        favorites.set(movie.id, movie);
+        favorites.set(item.id, toCardFields(item));
       }
       persist();
-      return favorites.has(movie.id);
+      return favorites.has(item.id);
     },
-    has(id: MovieEntity['id']): boolean {
+    has(id: CatalogEntity['id']): boolean {
       return favorites.has(id);
     },
     getCount(): number {
       return favorites.size;
     },
-    getAll(): MovieEntity[] {
+    getAll(): CatalogCardFields[] {
       return [...favorites.values()];
     }
   };

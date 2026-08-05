@@ -30,19 +30,28 @@
 <!-- ===================== TAQUILLA / FILTROS ===================== -->
 <section class="boxoffice" aria-label="Filtros de búsqueda">
   <div class="boxoffice__row">
-    <div class="field field--search">
+    <div class="field">
+      <label for="contentTypeSelect" data-i18n="labelContentType">Tipo de contenido</label>
+      <select id="contentTypeSelect">
+        <option value="movie" data-i18n="optMovies">Películas</option>
+        <option value="series" data-i18n="optSeries">Series</option>
+        <option value="documentary" data-i18n="optDocumentaries">Documentales</option>
+      </select>
+    </div>
+
+    <div class="field field--search" id="searchField">
       <label for="searchInput" data-i18n="labelSearch">Buscar título</label>
       <input type="text" id="searchInput" placeholder="Ej. Interstellar, El Padrino..." autocomplete="off">
     </div>
 
-    <div class="field">
+    <div class="field" id="genreField">
       <label for="genreSelect" data-i18n="labelGenre">Género</label>
       <select id="genreSelect">
         <option value="" data-i18n="optAll">Todos</option>
       </select>
     </div>
 
-    <div class="field">
+    <div class="field" id="yearField">
       <label for="yearInput" data-i18n="labelYear">Año</label>
       <input type="number" id="yearInput" placeholder="2024" min="1900" max="2100">
     </div>

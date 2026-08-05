@@ -51,6 +51,7 @@ export function setLang(lang: Lang): void { currentLang = lang; }
 interface UITextDictionary {
   eyebrow: string; subtitle: string;
   labelSearch: string; labelGenre: string; labelYear: string; optAll: string;
+  labelContentType: string; optMovies: string; optSeries: string; optDocumentaries: string;
   btnSearch: string; btnFavOnly: string;
   leaderLabel: string; emptyState: string;
   favPanelTitle: string; favPanelEmpty: string;
@@ -67,6 +68,7 @@ export const UI_TEXT: Record<Lang, UITextDictionary> = {
     eyebrow: 'Función continua · Sesión en vivo',
     subtitle: 'Galería dinámica de películas — TypeScript estricto, DTOs y mappers',
     labelSearch: 'Buscar título', labelGenre: 'Género', labelYear: 'Año', optAll: 'Todos',
+    labelContentType: 'Tipo de contenido', optMovies: 'Películas', optSeries: 'Series', optDocumentaries: 'Documentales',
     btnSearch: 'Buscar', btnFavOnly: 'Solo favoritos',
     leaderLabel: 'Cargando rollo de datos…',
     emptyState: 'No hay tomas que coincidan con este encuadre. Ajusta tus filtros.',
@@ -86,6 +88,7 @@ export const UI_TEXT: Record<Lang, UITextDictionary> = {
     eyebrow: 'Continuous showing · Live session',
     subtitle: 'Dynamic movie gallery — strict TypeScript, DTOs and mappers',
     labelSearch: 'Search title', labelGenre: 'Genre', labelYear: 'Year', optAll: 'All',
+    labelContentType: 'Content type', optMovies: 'Movies', optSeries: 'Series', optDocumentaries: 'Documentaries',
     btnSearch: 'Search', btnFavOnly: 'Favorites only',
     leaderLabel: 'Loading data reel…',
     emptyState: 'No shots match this frame. Adjust your filters.',

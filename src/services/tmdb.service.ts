@@ -7,6 +7,9 @@
 
 import { CONFIG, getLang } from '../config.js';
 import type { MovieDTO, MoviesResponseDTO, GenresResponseDTO } from '../dtos/movie.dto.js';
+import type { SeriesDTO, SeriesResponseDTO } from '../dtos/series.dto.js';
+
+const DOCUMENTARY_GENRE_ID = '99'; // id fijo de TMDB para el género "Documentary"
 
 function buildUrl(path: string, params: Record<string, string>): string {
   const url = new URL(`${CONFIG.BASE_URL}${path}`);
@@ -62,4 +65,18 @@ export async function getMovieDetail(id: number): Promise<MovieDTO> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`TMDB respondió ${res.status} al pedir el detalle de la película ${id}`);
   return (await res.json()) as MovieDTO;
+}
+
+/* ---- Series (endpoint real /tv de TMDB) ---- */
+export async function getPopularSeries(): Promise<SeriesDTO[]> {
+  const url = buildUrl('/tv/popular', { page: '1' });
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`TMDB respondió ${res.status} al pedir series`);
+  const data = (await res.json()) as SeriesResponseDTO;
+  return data.results;
+}
+
+/* ---- Documentales (mismo endpoint de películas, filtrado por género) ---- */
+export async function getDocumentaryMovies(): Promise<MovieDTO[]> {
+  return getMoviesByGenre(DOCUMENTARY_GENRE_ID);
 }

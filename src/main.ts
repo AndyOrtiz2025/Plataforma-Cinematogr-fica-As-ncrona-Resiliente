@@ -1,6 +1,7 @@
 /* =====================================================================
    main.ts — Punto de entrada de la aplicación.
-   Importa todos los módulos y conecta el DOM con la lógica.
+   Conecta el DOM con la lógica: catálogo, favoritos, idioma, y ahora
+   también el DataCatalogManager<T> genérico para Movies/Series/Docs.
    ===================================================================== */
 
 import { CONFIG, GENRES, getLang, setLang, t } from './config.js';
@@ -8,9 +9,15 @@ import { createFavoritesManager, type FavoritesManager } from './favorites.js';
 import { createFilterCache } from './filter-cache.js';
 import { getCatalog, type CatalogFilters } from './services/catalog.service.js';
 import { loadHomeData } from './services/orchestrator.service.js';
+import { getSeriesCatalog } from './services/series.service.js';
+import { getDocumentaryCatalog } from './services/documentary.service.js';
 import { renderGallery, populateGenreSelect, getPosterUrl } from './render.js';
 import { openMovieModal, closeModal } from './modal.js';
+import { DataCatalogManager } from './core/data-catalog-manager.js';
 import type { MovieEntity } from './entities/movie.entity.js';
+import type { SeriesEntity } from './entities/series.entity.js';
+import type { DocumentaryEntity } from './entities/documentary.entity.js';
+import type { CatalogEntity } from './entities/catalog-entity.js';
 import type { ReviewsEntity } from './entities/reviews.entity.js';
 import type { AdEntity } from './entities/ads.entity.js';
 import './services/debug.service.js'; // deja CINEGRID_DEBUG disponible en window
@@ -31,6 +38,10 @@ const els = {
   leaderNumber: getEl<HTMLSpanElement>('leaderNumber'),
   emptyState: getEl<HTMLParagraphElement>('emptyState'),
   statusLine: getEl<HTMLParagraphElement>('statusLine'),
+  contentTypeSelect: getEl<HTMLSelectElement>('contentTypeSelect'),
+  searchField: getEl<HTMLDivElement>('searchField'),
+  genreField: getEl<HTMLDivElement>('genreField'),
+  yearField: getEl<HTMLDivElement>('yearField'),
   searchInput: getEl<HTMLInputElement>('searchInput'),
   genreSelect: getEl<HTMLSelectElement>('genreSelect'),
   yearInput: getEl<HTMLInputElement>('yearInput'),
@@ -56,8 +67,19 @@ const favoritesManager: FavoritesManager = createFavoritesManager();
 // consultado, regresa de inmediato sin volver a llamar a la API real.
 const filterCache = createFilterCache<MovieEntity[]>(genreId => getCatalog({ genreId }));
 
-let currentMovies: MovieEntity[] = [];
+/* ---------------------------------------------------------------------
+   REQUISITO 1 (Tarea 4) — Un DataCatalogManager<T> genérico por cada
+   tipo de contenido. La MISMA clase, sin duplicar código, gestiona
+   3 colecciones totalmente distintas y tipadas.
+   --------------------------------------------------------------------- */
+const movieCatalog = new DataCatalogManager<MovieEntity>();
+const seriesCatalog = new DataCatalogManager<SeriesEntity>();
+const documentaryCatalog = new DataCatalogManager<DocumentaryEntity>();
+
+type ContentType = 'movie' | 'series' | 'documentary';
+let activeContentType: ContentType = 'movie';
 let showingFavoritesOnly = false;
+let seriesAndDocsLoaded = false;
 
 /* ===================================================================
    Contador (leader) del spinner de carga
@@ -114,7 +136,7 @@ function renderServiceBanners({ reviews, reviewsError, ads, adsError }: ServiceB
 }
 
 /* ===================================================================
-   Carga principal — Promise.allSettled contra los 3 servicios
+   Carga de Películas — Promise.allSettled contra los 3 servicios
    (Catálogo real de TMDB + Reseñas/Anuncios simulados)
    =================================================================== */
 async function loadMovies(): Promise<void> {
@@ -133,7 +155,8 @@ async function loadMovies(): Promise<void> {
 
   try {
     const { movies, reviews, reviewsError, ads, adsError } = await loadHomeData(filters);
-    currentMovies = movies;
+    movieCatalog.clear();
+    movieCatalog.addMany(movies);
     applyFiltersAndRender();
     renderServiceBanners({ reviews, reviewsError, ads, adsError });
     els.statusLine.textContent = t('statusResults')(movies.length);
@@ -148,7 +171,7 @@ async function loadMovies(): Promise<void> {
 }
 
 /* ===================================================================
-   Filtro por género — usa el caché con closures
+   Filtro por género (solo aplica a Películas) — usa el caché
    =================================================================== */
 async function handleGenreFilterChange(): Promise<void> {
   const genreId = els.genreSelect.value;
@@ -163,7 +186,8 @@ async function handleGenreFilterChange(): Promise<void> {
 
   const { movies, fromCache } = await filterCache.getByGenre(genreId);
 
-  currentMovies = movies;
+  movieCatalog.clear();
+  movieCatalog.addMany(movies);
   applyFiltersAndRender();
   els.statusLine.textContent = fromCache
     ? `${t('statusCacheHit')} — ${movies.length} resultado(s).`
@@ -173,10 +197,70 @@ async function handleGenreFilterChange(): Promise<void> {
   els.grid.hidden = false;
 }
 
+/* ===================================================================
+   Carga de Series y Documentales — solo una vez, bajo demanda, con
+   sus propias instancias de DataCatalogManager<T>.
+   =================================================================== */
+async function ensureSeriesAndDocsLoaded(): Promise<void> {
+  if (seriesAndDocsLoaded) return;
+
+  els.filmLeader.hidden = false;
+  els.grid.hidden = true;
+  els.statusLine.textContent = t('statusLoading');
+  const countdownHandle = runCountdown(CONFIG.SIMULATED_LATENCY_MS);
+
+  try {
+    const [series, docs] = await Promise.all([getSeriesCatalog(), getDocumentaryCatalog()]);
+    seriesCatalog.addMany(series);
+    documentaryCatalog.addMany(docs);
+    seriesAndDocsLoaded = true;
+  } catch (err) {
+    console.error(err);
+    els.statusLine.textContent = t('statusError');
+  } finally {
+    clearInterval(countdownHandle);
+    els.filmLeader.hidden = true;
+  }
+}
+
+/* ===================================================================
+   Cambiar el tipo de contenido activo (Movies / Series / Documentaries)
+   Reutiliza el MISMO renderGallery para los 3 — esa es la prueba de
+   que DataCatalogManager<T> y el render son de verdad genéricos.
+   =================================================================== */
+function getActiveCatalogItems(): CatalogEntity[] {
+  switch (activeContentType) {
+    case 'movie': return movieCatalog.getAll();
+    case 'series': return seriesCatalog.getAll();
+    case 'documentary': return documentaryCatalog.getAll();
+  }
+}
+
+async function handleContentTypeChange(): Promise<void> {
+  activeContentType = els.contentTypeSelect.value as ContentType;
+
+  const isMovies = activeContentType === 'movie';
+  els.searchField.hidden = !isMovies;
+  els.genreField.hidden = !isMovies;
+  els.yearField.hidden = !isMovies;
+
+  if (isMovies) {
+    applyFiltersAndRender();
+    els.statusLine.textContent = t('statusResults')(movieCatalog.count());
+    return;
+  }
+
+  await ensureSeriesAndDocsLoaded();
+  applyFiltersAndRender();
+  const count = activeContentType === 'series' ? seriesCatalog.count() : documentaryCatalog.count();
+  els.statusLine.textContent = t('statusResults')(count);
+}
+
 function applyFiltersAndRender(): void {
+  const items = getActiveCatalogItems();
   const list = showingFavoritesOnly
-    ? currentMovies.filter(m => favoritesManager.has(m.id))
-    : currentMovies;
+    ? items.filter(item => favoritesManager.has(item.id))
+    : items;
   renderGallery(list, favoritesManager, els);
 }
 
@@ -213,7 +297,8 @@ function refreshFavoritesPanel(): void {
     removeBtn.textContent = '✕';
     removeBtn.setAttribute('aria-label', `Quitar ${movie.title} de favoritos`);
     removeBtn.addEventListener('click', () => {
-      favoritesManager.toggle(movie);
+      const fullItem = getActiveCatalogItems().find(m => m.id === movie.id);
+      if (fullItem) favoritesManager.toggle(fullItem);
       refreshFavoritesPanel();
       const cardBtn = els.grid.querySelector<HTMLButtonElement>(`[data-movie-id="${String(movie.id)}"] .fav-btn`);
       if (cardBtn) cardBtn.classList.remove('active');
@@ -235,19 +320,19 @@ els.grid.addEventListener('click', (event: MouseEvent) => {
   if (!card || !card.dataset.movieId) return;
 
   const movieId = Number(card.dataset.movieId);
-  const movie = currentMovies.find(m => m.id === movieId);
-  if (!movie) return;
+  const item = getActiveCatalogItems().find(m => m.id === movieId);
+  if (!item) return;
 
   const favBtn = target.closest<HTMLElement>('[data-action="toggle-fav"]');
   if (favBtn) {
     event.stopPropagation();
-    const isFav = favoritesManager.toggle(movie);
+    const isFav = favoritesManager.toggle(item);
     favBtn.classList.toggle('active', isFav);
     refreshFavoritesPanel();
     return;
   }
 
-  openMovieModal(movie, els);
+  openMovieModal(item, els);
 });
 
 /* Reordenamiento por arrastre */
@@ -376,6 +461,7 @@ els.langToggleBtn.addEventListener('click', () => {
 /* ===================================================================
    Listeners de filtros
    =================================================================== */
+els.contentTypeSelect.addEventListener('change', () => void handleContentTypeChange());
 els.searchBtn.addEventListener('click', () => void loadMovies());
 els.searchInput.addEventListener('keydown', (e: KeyboardEvent) => {
   if (e.key === 'Enter') void loadMovies();
